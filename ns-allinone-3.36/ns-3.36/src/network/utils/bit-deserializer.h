@@ -22,6 +22,7 @@
 #define BITDESERIALIZER_H_
 
 #include <vector>
+#include <cstdint>
 #include <deque>
 
 namespace ns3 {

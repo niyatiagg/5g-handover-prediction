@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  SUMO Configuration File for 5G Handover Simulation
+  This file configures SUMO to work with ns3
+-->
+<configuration>
+  <input>
+    <net-file value="urban-scenario.net.xml"/>
+    <route-files value="urban-scenario.rou.xml"/>
+    <additional-files value="vtypes.add.xml"/>
+  </input>
+  <time>
+    <begin value="0"/>
+    <end value="500000"/>
+    <step-length value="0.5"/>
+  </time>
+  <output>
+    <fcd-output value="sumo-fcd-trace.xml"/>
+    <device.fcd.period value="1.0"/>
+  </output>
+  <random_number>
+    <seed value="42"/>
+  </random_number>
+</configuration>
+

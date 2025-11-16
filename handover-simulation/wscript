@@ -1,0 +1,10 @@
+# wscript file for ns3 build system
+# This file allows the simulation to be built using ns3's waf build system
+
+def build(bld):
+    obj = bld.create_ns3_program('handover-simulation',
+                                  ['core', 'network', 'mobility', 'lte', 
+                                   'internet', 'applications', 'point-to-point',
+                                   'flow-monitor', 'config-store'])
+    obj.source = 'handover-simulation.cc'
+

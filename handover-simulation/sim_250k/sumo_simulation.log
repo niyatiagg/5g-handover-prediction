@@ -1,0 +1,16 @@
+Loading net-file from 'urban-scenario.net.xml' ...
+ done (3ms).
+Loading additional-files from 'vtypes.add.xml' ... done (0ms).
+Loading route-files incrementally from 'urban-scenario.rou.xml'
+Loading done.
+Simulation version 1.25.0 started with time: 0.00.
+Simulation ended at time: 250000.00.
+Reason: The final simulation step has been reached.
+Performance:
+ Duration: 1.45s
+ Real time factor: 172295
+ UPS: 125819.434873
+Vehicles:
+ Inserted: 10
+ Running: 0
+ Waiting: 0
