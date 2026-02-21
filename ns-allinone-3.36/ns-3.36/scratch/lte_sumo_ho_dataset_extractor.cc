@@ -2,15 +2,16 @@
 /*
  * lte_sumo_ho_dataset_extractor.cc
  *
- * Outputs (per UE, every 40ms):
- * ueId, time, rssi, current_id, current_rssi, hysteresis, rsrp, sinr, distance_ue, trigger
+ * Outputs (per UE, every samplePeriod):
+ * time_s, ue_imsi, rssi_id, rssi, current_id, current_rssi, hysteresis, rsrp, sinr, distance_ue, trigger
  *
- * Candidate id/rssi are taken from neighbor measurements inside MeasurementReport.
- * Serving rsrp/sinr from UE PHY trace (ReportCurrentCellRsrpSinr) and/or MeasurementReport PCell.
- * Trigger is latched on EnbRrc/HandoverStart (one sample tick).
+ * - rssi_id/rssi: best neighbor candidate (RSRP used as RSSI proxy) from MeasurementReport
+ * - current_id: serving cell id (UE RRC)
+ * - current_rssi: derived from serving rsrp/sinr
+ * - trigger: A3 + TTT pulse label (one pulse per episode)
  *
- * Build/run (ns-3 waf):
- *   ./waf --run "lte_sumo_ho_dataset_extractor --sumoTrace=mobility.tcl --simTime=500000"
+ * IMPORTANT FIX:
+ * - Do NOT allow trigger=1 when current_id==0 or serving cell position is unknown
  */
 
 #include "ns3/core-module.h"
@@ -45,25 +46,21 @@ struct PerUeState
   double servingRsrpDbm = std::numeric_limits<double>::quiet_NaN ();
   double servingSinrDb  = std::numeric_limits<double>::quiet_NaN ();
 
-  // Best neighbor candidate (paper: id, rssi)
+  // Best neighbor candidate
   uint16_t candCellId = 0;
   double candRssiDbm  = std::numeric_limits<double>::quiet_NaN ();
 
-  // Trigger latch (1 for the next sample after HO starts)
-  bool trigger = false;
-  
+  // A3+TTT pulse state
   double a3CondStartTime = -1.0;  // seconds; -1 means A3 condition not active
-  bool a3PulseFired = false;      // ensures pulse behavior (only once per condition episode)
-
+  bool a3PulseFired = false;      // pulse only once per episode
 
   // Latest UE position
   Vector pos = Vector (0,0,0);
 };
 
 static std::ofstream g_csv;
-static double g_hysteresisDb = 3.0;
+static double g_hysteresisDb = 2.0;
 static Time   g_samplePeriod = Seconds (1.0);
-static uint64_t g_hoStartCount = 0;
 
 static std::unordered_map<uint64_t, PerUeState> g_state;     // IMSI -> state
 static std::unordered_map<uint64_t, uint32_t>   g_imsiToIdx; // IMSI -> UE index
@@ -75,7 +72,6 @@ static NetDeviceContainer g_ueDevs;
 static uint32_t
 ExtractNodeIdFromContext (const std::string &context)
 {
-  // context looks like: "/NodeList/7/DeviceList/0/LteUePhy/ReportCurrentCellRsrpSinr"
   static const std::regex re ("/NodeList/([0-9]+)/");
   std::smatch m;
   if (std::regex_search (context, m, re))
@@ -85,18 +81,12 @@ ExtractNodeIdFromContext (const std::string &context)
   return std::numeric_limits<uint32_t>::max ();
 }
 
-
-// ---------- Callbacks ----------
-
-// UE PHY trace: current serving cell RSRP/SINR
-// Signature matches LteUePhy::RsrpSinrTracedCallback with context prefix:
-// (context, cellId, rnti, rsrp, sinr, componentCarrierId)
-
+// UE PHY trace: serving cell RSRP/SINR
 static void
 UePhyReportCurrentCellRsrpSinr (std::string context,
                                 uint16_t /*cellId*/,
                                 uint16_t /*rnti*/,
-                                double rsrpDbm,
+                                double rsrpW,
                                 double sinrLinear,
                                 uint8_t /*componentCarrierId*/)
 {
@@ -106,8 +96,6 @@ UePhyReportCurrentCellRsrpSinr (std::string context,
       return;
     }
 
-  // Your UE nodes are NodeContainer g_ueNodes created sequentially, typically nodeIds start after eNBs.
-  // So we map nodeId -> UE index by searching g_ueNodes.
   for (uint32_t u = 0; u < g_ueNodes.GetN (); ++u)
     {
       if (g_ueNodes.Get (u)->GetId () == nodeId)
@@ -117,34 +105,25 @@ UePhyReportCurrentCellRsrpSinr (std::string context,
           const uint64_t imsi = ue->GetImsi ();
 
           auto &S = g_state[imsi];
-          double rsrpW = rsrpDbm; // rename mentally: it's power in W
-          double rsrpDbmConv = std::numeric_limits<double>::quiet_NaN();
+
+          // Convert rsrp from W to dBm (ns-3 trace gives W for this callback in many builds)
+          double rsrpDbmConv = std::numeric_limits<double>::quiet_NaN ();
           if (rsrpW > 0)
-          {
-            rsrpDbmConv = 10.0 * std::log10(rsrpW * 1000.0); // W -> dBm
-          }
+            {
+              rsrpDbmConv = 10.0 * std::log10 (rsrpW * 1000.0);
+            }
           S.servingRsrpDbm = rsrpDbmConv;
 
-
-          // convert SINR linear -> dB
+          // Convert SINR linear -> dB
           if (sinrLinear > 0)
             {
               S.servingSinrDb = 10.0 * std::log10 (sinrLinear);
             }
-          
-          /*if (Simulator::Now ().GetSeconds () < 2.0)
-            {
-              std::cout << "t=" << Simulator::Now ().GetSeconds ()
-                        << " imsi=" << imsi
-                        << " rsrpDbm=" << rsrpDbm
-                        << " sinrDb=" << S.servingSinrDb
-                        << std::endl;
-            }*/
+
           return;
         }
     }
 }
-
 
 // eNB receives UE measurement reports: contains PCell and neighbor cells
 static void
@@ -170,12 +149,10 @@ NotifyRecvMeasurementReport (std::string /*context*/,
       for (const auto &nc : msg.measResults.measResultListEutra)
         {
           const uint16_t neighPci = nc.physCellId;
-
-          // ns-3.36 typically stores neighbor rsrp directly as nc.rsrpResult
           const uint8_t neighRsrpEnc = nc.rsrpResult;
           const double neighRsrpDbm = -140.0 + (double) neighRsrpEnc;
 
-          const uint16_t neighCellId = neighPci;
+          const uint16_t neighCellId = neighPci; // using PCI as id
 
           if (neighRsrpDbm > bestRsrpDbm)
             {
@@ -188,25 +165,11 @@ NotifyRecvMeasurementReport (std::string /*context*/,
   if (bestId != 0)
     {
       S.candCellId = bestId;
-      S.candRssiDbm = bestRsrpDbm; // using neighbor RSRP as RSSI proxy
+      S.candRssiDbm = bestRsrpDbm; // neighbor RSRP as RSSI proxy
     }
 }
 
-// HO trigger latch (one-shot)
-static void
-OnHandoverStart (std::string /*context*/,
-                 uint64_t imsi,
-                 uint16_t /*cellId*/,
-                 uint16_t /*rnti*/,
-                 uint16_t /*targetCellId*/)
-{
-  g_state[imsi].trigger = true;
-  g_hoStartCount++;
-}
-
-
-// ---------- Periodic sampling ----------
-
+// Periodic sampling
 static void
 Sample ()
 {
@@ -231,12 +194,17 @@ Sample ()
       Ptr<MobilityModel> mm = g_ueNodes.Get (uidx)->GetObject<MobilityModel> ();
       if (mm) S.pos = mm->GetPosition ();
 
-      // distance_ue: Euclidean distance UE -> serving gNB (paper wording)
+      // distance_ue: UE -> serving eNB
       double distance = std::numeric_limits<double>::quiet_NaN ();
-      auto itp = g_cellPos.find (currentId);
-      if (itp != g_cellPos.end ())
+      bool validServing = false;
+      if (currentId != 0)
         {
-          distance = CalculateDistance (S.pos, itp->second);
+          auto itp = g_cellPos.find (currentId);
+          if (itp != g_cellPos.end ())
+            {
+              distance = CalculateDistance (S.pos, itp->second);
+              validServing = std::isfinite (distance);
+            }
         }
 
       // current_rssi derived from serving rsrp + sinr if available
@@ -249,43 +217,63 @@ Sample ()
           currentRssiDbm       = MilliwattToDbm (rsrpMw + inMw);
         }
 
-      // --- A3 + TTT pulse label (TTT = 160 ms) ---
-      const double now = Simulator::Now().GetSeconds();
-      const double ttt = 0.160; // 160 ms
+      // --- A3 + TTT pulse label ---
+      const double now = Simulator::Now ().GetSeconds ();
+      const double ttt = 0.160; // 160 ms pulse label
 
       int trigger = 0;
 
-      // A3 condition: candidate better than current by hysteresis
-      bool a3Cond =
-        (S.candCellId != 0 &&
-         std::isfinite(S.candRssiDbm) &&
-         std::isfinite(currentRssiDbm) &&
-         (S.candRssiDbm > currentRssiDbm + g_hysteresisDb));
-
-      if (a3Cond)
-      {
-        if (S.a3CondStartTime < 0.0)
+      // If UE isn't in a valid serving state, do NOT produce trigger=1
+      if (!validServing)
         {
-          S.a3CondStartTime = now;
+          // reset episode state (prevents “TTT carry-over” during invalid periods)
+          S.a3CondStartTime = -1.0;
+          S.a3PulseFired = false;
+        
+	  S.candCellId = 0;
+  	  S.candRssiDbm = std::numeric_limits<double>::quiet_NaN();
+	}
+      else
+        {
+          // A3 condition: candidate better than current by hysteresis
+          bool a3Cond =
+            (S.candCellId != 0 &&
+             S.candCellId != currentId &&               // recommended (neighbor != serving)
+             std::isfinite (S.candRssiDbm) &&
+             std::isfinite (currentRssiDbm) &&
+             (S.candRssiDbm > currentRssiDbm + g_hysteresisDb));
+
+          if (a3Cond)
+            {
+              if (S.a3CondStartTime < 0.0)
+                {
+                  S.a3CondStartTime = now;
+                  S.a3PulseFired = false;
+                }
+
+              if (!S.a3PulseFired && (now - S.a3CondStartTime) >= ttt)
+                {
+                  trigger = 1;
+                  S.a3PulseFired = true;
+                }
+            }
+          else
+            {
+              S.a3CondStartTime = -1.0;
+              S.a3PulseFired = false;
+            }
+        }
+        
+              // Hard safety invariant: never emit trigger=1 in invalid serving state
+      if (trigger == 1 && (!validServing || currentId == 0 || !std::isfinite (distance)))
+        {
+          NS_LOG_ERROR ("BUG: trigger=1 during invalid serving state (imsi="
+                        << imsi << ", cellId=" << currentId << ", dist=" << distance << ")");
+          trigger = 0;
+          S.a3CondStartTime = -1.0;
           S.a3PulseFired = false;
         }
 
-        // Pulse once when TTT is first satisfied
-        if (!S.a3PulseFired && (now - S.a3CondStartTime) >= ttt)
-        {
-          trigger = 1;
-          S.a3PulseFired = true;
-        }
-      }
-      else
-      {
-        // reset when condition no longer holds
-        S.a3CondStartTime = -1.0;
-        S.a3PulseFired = false;
-      }
-
-
-      // If no neighbor candidate is known yet, leave candId/candRssi as NaN/0
       g_csv << std::fixed << std::setprecision (6)
             << t << ","
             << imsi << ","
@@ -299,14 +287,12 @@ Sample ()
             << distance << ","
             << trigger
             << "\n";
-
-      
     }
 
   Simulator::Schedule (g_samplePeriod, &Sample);
 }
 
-// ---------- eNB placement helper ----------
+// eNB placement helper
 static void
 PlaceEnbs (NodeContainer enbNodes, Rectangle area)
 {
@@ -341,7 +327,6 @@ main (int argc, char *argv[])
   uint16_t prbs = 50;
   g_samplePeriod = Seconds (1.0);
 
-
   CommandLine cmd;
   cmd.AddValue ("numEnbs", "number of eNBs", numEnbs);
   cmd.AddValue ("numUes",  "number of UEs",  numUes);
@@ -354,12 +339,9 @@ main (int argc, char *argv[])
   NodeContainer enbNodes; enbNodes.Create (numEnbs);
   g_ueNodes.Create (numUes);
 
-  // eNB positions from paper’s rectangle
   PlaceEnbs (enbNodes, Rectangle (175.0, 1250.0, 230.0, 830.0));
 
-  // Save CellId -> position map after devices are installed (we fill after InstallEnbDevice)
-
-  // SUMO .tcl mobility for UEs
+  // SUMO mobility
   Ns2MobilityHelper ns2 (sumoTrace);
   ns2.Install ();
   MobilityHelper fallback;
@@ -384,40 +366,38 @@ main (int argc, char *argv[])
 
   lteHelper->SetHandoverAlgorithmType ("ns3::A3RsrpHandoverAlgorithm");
   lteHelper->SetHandoverAlgorithmAttribute ("Hysteresis", DoubleValue (g_hysteresisDb));
-  lteHelper->SetHandoverAlgorithmAttribute ("TimeToTrigger", TimeValue (MilliSeconds (40)));
+  lteHelper->SetHandoverAlgorithmAttribute ("TimeToTrigger", TimeValue (MilliSeconds (160))); // align with label
 
   NetDeviceContainer enbDevs = lteHelper->InstallEnbDevice (enbNodes);
   g_ueDevs  = lteHelper->InstallUeDevice (g_ueNodes);
-  
+
   Config::Connect ("/NodeList/*/DeviceList/*/$ns3::LteUeNetDevice/"
-                 "ComponentCarrierMapUe/*/LteUePhy/ReportCurrentCellRsrpSinr",
-                 MakeCallback (&UePhyReportCurrentCellRsrpSinr));
-  
-    // ---- Internet stack on UEs (required for EPC bearer activation) ----
+                   "ComponentCarrierMapUe/*/LteUePhy/ReportCurrentCellRsrpSinr",
+                   MakeCallback (&UePhyReportCurrentCellRsrpSinr));
+
+  // Internet stack on UEs
   InternetStackHelper internet;
   internet.Install (g_ueNodes);
 
-  // Assign IPv4 addresses to UEs
   Ipv4InterfaceContainer ueIpIfaces =
       epcHelper->AssignUeIpv4Address (NetDeviceContainer (g_ueDevs));
 
-  // Set default route for each UE to the EPC's default gateway
   Ipv4StaticRoutingHelper ipv4RoutingHelper;
   for (uint32_t u = 0; u < g_ueNodes.GetN (); ++u)
-  {
-    Ptr<Ipv4StaticRouting> ueStaticRouting =
-        ipv4RoutingHelper.GetStaticRouting (g_ueNodes.Get (u)->GetObject<Ipv4> ());
-    ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
-  }
+    {
+      Ptr<Ipv4StaticRouting> ueStaticRouting =
+          ipv4RoutingHelper.GetStaticRouting (g_ueNodes.Get (u)->GetObject<Ipv4> ());
+      ueStaticRouting->SetDefaultRoute (epcHelper->GetUeDefaultGatewayAddress (), 1);
+    }
 
-  // Build IMSI -> UE index map
+  // IMSI -> UE index
   for (uint32_t i = 0; i < g_ueDevs.GetN (); ++i)
     {
       Ptr<LteUeNetDevice> ue = g_ueDevs.Get (i)->GetObject<LteUeNetDevice> ();
       g_imsiToIdx[ue->GetImsi ()] = i;
     }
 
-  // Build CellId -> eNB position map
+  // CellId -> eNB position
   for (uint32_t j = 0; j < enbDevs.GetN (); ++j)
     {
       Ptr<LteEnbNetDevice> enb = enbDevs.Get (j)->GetObject<LteEnbNetDevice> ();
@@ -426,31 +406,22 @@ main (int argc, char *argv[])
       g_cellPos[cid] = mm->GetPosition ();
     }
 
-  // Attach UEs
+  // Attach + X2
   for (uint32_t i = 0; i < g_ueDevs.GetN (); ++i)
     {
       lteHelper->Attach (g_ueDevs.Get (i));
     }
   lteHelper->AddX2Interface (enbNodes);
 
-  // Connect traces
+  // Measurement reports
   Config::Connect ("/NodeList/*/DeviceList/*/LteEnbRrc/RecvMeasurementReport",
                    MakeCallback (&NotifyRecvMeasurementReport));
-
-  Config::Connect ("/NodeList/*/DeviceList/*/LteEnbRrc/HandoverStart",
-                   MakeCallback (&OnHandoverStart));
-
-  // If your ns-3 build exposes this trace, you can also connect it:
-  // Config::Connect ("/NodeList/*/DeviceList/*/LteUePhy/ReportCurrentCellRsrpSinr",
-  //                  MakeCallback (&UePhyRsrpSinr));
 
   // CSV output
   g_csv.open (csvOut.c_str ());
   g_csv << "time_s,ue_imsi,rssi_id,rssi,current_id,current_rssi,hysteresis,rsrp,sinr,distance_ue,trigger\n";
   g_csv.setf (std::ios::fixed);
   g_csv << std::setprecision (6);
-  
-  std::cout << "HandoverStart count = " << g_hoStartCount << std::endl;
 
   Simulator::Schedule (g_samplePeriod, &Sample);
 
