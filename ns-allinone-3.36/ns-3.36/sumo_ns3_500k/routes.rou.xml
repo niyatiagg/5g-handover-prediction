@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-02-02 22:06:06.967931 by Eclipse SUMO randomTrips.py UNKNOWN
+<configuration>
+    <net-file value="net_offset.net.xml"/>
+    <route-file value="routes.rou.xml"/>
+    <prefix value="ue"/>
+    <trip-attributes value="type=&quot;ue&quot; departSpeed=&quot;max&quot;"/>
+    <end value="500000.0"/>
+    <period value="50000.0"/>
+    <random-depart value="True"/>
+</configuration>
+-->
+
+<!-- generated on 2026-02-02T22:06:06.958046+00:00 by Eclipse SUMO duarouter 1.25.0
+<duarouterConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/duarouterConfiguration.xsd">
+
+    <input>
+        <net-file value="net_offset.net.xml"/>
+        <route-files value="trips.trips.xml"/>
+    </input>
+
+    <output>
+        <output-file value="routes.rou.xml"/>
+        <alternatives-output value="NUL"/>
+    </output>
+
+    <time>
+        <begin value="0.0"/>
+        <end value="500000.0"/>
+    </time>
+
+    <report>
+        <no-warnings value="true"/>
+        <ignore-errors value="true"/>
+        <no-step-log value="true"/>
+    </report>
+
+</duarouterConfiguration>
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <vehicle id="ue0" type="ue" depart="13112.00" departSpeed="max">
+        <route edges="H3G3 G3G4 G4G5 G5H5 H5I5 I5J5 J5K5"/>
+    </vehicle>
+    <vehicle id="ue1" type="ue" depart="53736.00" departSpeed="max">
+        <route edges="B1B0 B0C0 C0D0 D0E0 E0E1 E1E2 E2E3 E3E4 E4E5 E5E6 E6E7"/>
+    </vehicle>
+    <vehicle id="ue2" type="ue" depart="58369.00" departSpeed="max">
+        <route edges="A4A3 A3B3 B3B4 B4B5 B5C5 C5C4"/>
+    </vehicle>
+    <vehicle id="ue3" type="ue" depart="73158.00" departSpeed="max">
+        <route edges="F5F4 F4F3 F3E3 E3D3 D3C3 C3B3 B3A3 A3A4"/>
+    </vehicle>
+    <vehicle id="ue4" type="ue" depart="117026.00" departSpeed="max">
+        <route edges="C3B3 B3B2 B2B1 B1B0 B0C0 C0D0 D0E0 E0F0 F0G0 G0H0 H0I0"/>
+    </vehicle>
+    <vehicle id="ue5" type="ue" depart="128393.00" departSpeed="max">
+        <route edges="F9F8 F8F7 F7F6 F6F5 F5E5 E5D5 D5C5 C5C4"/>
+    </vehicle>
+    <vehicle id="ue6" type="ue" depart="144194.00" departSpeed="max">
+        <route edges="G4F4 F4F5 F5F6 F6F7 F7G7 G7H7 H7I7 I7I6"/>
+    </vehicle>
+    <vehicle id="ue7" type="ue" depart="335243.00" departSpeed="max">
+        <route edges="A10A9 A9A8 A8A7 A7A6 A6B6 B6C6 C6D6 D6E6 E6F6 F6G6 G6H6 H6I6 I6J6"/>
+    </vehicle>
+    <vehicle id="ue8" type="ue" depart="386123.00" departSpeed="max">
+        <route edges="H5H6 H6H7 H7H8 H8G8 G8F8 F8E8 E8D8 D8C8"/>
+    </vehicle>
+    <vehicle id="ue9" type="ue" depart="388786.00" departSpeed="max">
+        <route edges="B8C8 C8C7 C7C6 C6C5 C5C4 C4C3 C3C2 C2C1 C1C0 C0D0 D0E0 E0F0 F0G0 G0H0 H0I0 I0J0 J0K0 K0K1 K1K2 K2K3 K3K4"/>
+    </vehicle>
+</routes>

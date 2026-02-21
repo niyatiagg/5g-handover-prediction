@@ -41,6 +41,8 @@ std::map<uint64_t, double> ueThroughputUl; // IMSI -> Uplink throughput (Mbps)
 std::map<uint64_t, double> ueLastRsrp; // IMSI -> Last RSRP value (dBm)
 std::map<uint64_t, double> ueLastRsrq; // IMSI -> Last RSRQ value (dB)
 std::map<uint64_t, double> ueLastSinr; // IMSI -> Last SINR value (dB)
+std::map<uint16_t, double> cellRsrp; // CellId -> Latest RSRP (for PHY trace)
+std::map<uint16_t, double> cellSinr; // CellId -> Latest SINR (for PHY trace)
 
 // CSV Data Logger Class
 class HandoverDataLogger : public Object
@@ -95,9 +97,11 @@ public:
                        double rsrp, double rsrq, double sinr, double x, double y, double speed,
                        double throughputDl = 0.0, double throughputUl = 0.0)
   {
+    // For MEASUREMENT rows: fill both Old and New columns with serving cell
+    // and place RSRP/RSRQ/SINR in the "_New" columns (not "_Old")
     m_file << std::fixed << std::setprecision (6)
-           << time << "," << ueId << ",," << cellId << ","
-           << rsrp << ",," << rsrq << ",," << sinr << ",,"
+           << time << "," << ueId << "," << cellId << "," << cellId << ","
+           << "," << rsrp << "," << "," << rsrq << "," << "," << sinr << ","
            << throughputDl << "," << throughputUl << ","
            << x << "," << y << "," << speed << ",MEASUREMENT\n";
     m_file.flush ();
@@ -224,8 +228,33 @@ void NotifyConnectionEstablishedUe (std::string context,
   ueCurrentCell[imsi] = cellid;
 }
 
+// PHY trace callback for RSRP and SINR (more accurate than RRC measurement reports)
+// Signature matches LteUePhy::RsrpSinrTracedCallback: (cellId, rnti, rsrp, sinr, componentCarrierId)
+// When using Config::Connect (not ConnectWithoutContext), NS3 adds context as first parameter
+void UePhyRsrpSinr (std::string context, uint16_t cellId, uint16_t rnti, double rsrp, double sinr, uint8_t componentCarrierId)
+{
+  // Store latest RSRP and SINR by cellId
+  // In the periodic logger, we'll match these to IMSI based on current cell association
+  cellRsrp[cellId] = rsrp;
+  cellSinr[cellId] = sinr;
+  
+  // Also try to update IMSI-specific maps by parsing context
+  // Context format: /NodeList/X/DeviceList/Y/LteUePhy/ReportCurrentCellRsrpSinr
+  size_t nodeListPos = context.find ("/NodeList/");
+  size_t deviceListPos = context.find ("/DeviceList/");
+  
+  if (nodeListPos != std::string::npos && deviceListPos != std::string::npos)
+    {
+      // Extract node index for potential IMSI lookup
+      // For now, we store by cellId and match in periodic logger
+      (void)nodeListPos; // Suppress unused warning
+      (void)deviceListPos; // Suppress unused warning
+    }
+}
+
 // Measurement report callback (from eNB side - receives UE measurement reports)
 // Note: This uses the ReceiveReportTracedCallback signature
+// Used primarily for RSRQ which may not be available in PHY traces
 void NotifyRecvMeasurementReport (std::string context,
                                    uint64_t imsi,
                                    uint16_t cellId,
@@ -256,11 +285,17 @@ void NotifyRecvMeasurementReport (std::string context,
   rsrq = -19.5 + (double)rsrqEncoded / 2.0;
   ueLastRsrq[imsi] = rsrq;
   
-  // Get SINR (this is harder to extract, might need different approach)
+  // Get SINR from PHY trace (stored by cellId, then matched to IMSI)
   double sinr = 0.0;
   if (ueLastSinr.find (imsi) != ueLastSinr.end ())
     {
       sinr = ueLastSinr[imsi];
+    }
+  else if (cellId > 0 && cellSinr.find (cellId) != cellSinr.end ())
+    {
+      // Use cellId-based SINR from PHY trace
+      sinr = cellSinr[cellId];
+      ueLastSinr[imsi] = sinr; // Cache for this IMSI
     }
   
   // Log measurement with real values
@@ -335,24 +370,102 @@ void NotifyReportUeMeasurements (std::string context,
           throughputUl = ueThroughputUl[imsi];
         }
       
-      // Note: SINR calculation from RSRP requires noise/interference info
-      // For now, we'll use a placeholder or calculate from RSRP if possible
-      double sinr = rsrp + 100.0; // Rough approximation (would need actual noise)
-      ueLastSinr[imsi] = sinr;
+      // Get SINR from PHY trace (stored by cellId, then matched to IMSI)
+      double sinr = 0.0;
+      if (ueLastSinr.find (imsi) != ueLastSinr.end ())
+        {
+          sinr = ueLastSinr[imsi];
+        }
+      else if (cellId > 0 && cellSinr.find (cellId) != cellSinr.end ())
+        {
+          // Use cellId-based SINR from PHY trace
+          sinr = cellSinr[cellId];
+          ueLastSinr[imsi] = sinr; // Cache for this IMSI
+        }
       
       g_logger->LogMeasurement (time, imsi, cellId, rsrp, rsrq, sinr, x, y, speed, throughputDl, throughputUl);
     }
 }
 
-// Mobility trace callback
-void MobilityTrace (Ptr<const MobilityModel> mobility)
+// Periodic throughput sampling function
+// Updates ueThroughputDl and ueThroughputUl maps during simulation
+void SampleThroughput (Ptr<FlowMonitor> monitor,
+                       Ptr<Ipv4FlowClassifier> classifier,
+                       NetDeviceContainer ueDevs,
+                       Ipv4InterfaceContainer ueIpIfaces,
+                       uint16_t numUes,
+                       double period)
 {
-  // This will be called periodically to update UE positions
-  // Extract IMSI from context would require additional setup
+  monitor->CheckForLostPackets ();
+  FlowMonitor::FlowStatsContainer stats = monitor->GetFlowStats ();
+  
+  // Build IP to IMSI mapping (do this once and reuse, but for simplicity we rebuild)
+  std::map<Ipv4Address, uint64_t> ipToImsi;
+  for (uint16_t i = 0; i < numUes; ++i)
+    {
+      if (i < ueIpIfaces.GetN ())
+        {
+          Ipv4Address ueIp = ueIpIfaces.GetAddress (i);
+          if (i < ueDevs.GetN ())
+            {
+              Ptr<NetDevice> ueDev = ueDevs.Get (i);
+              Ptr<LteUeNetDevice> lteUeDev = ueDev->GetObject<LteUeNetDevice> ();
+              if (lteUeDev)
+                {
+                  uint64_t imsi = lteUeDev->GetImsi ();
+                  ipToImsi[ueIp] = imsi;
+                }
+            }
+        }
+    }
+  
+  // Calculate throughput per UE from flow statistics
+  std::map<uint64_t, double> totalThroughputDl;
+  std::map<uint64_t, double> totalThroughputUl;
+  
+  double currentTime = Simulator::Now ().GetSeconds ();
+  
+  for (auto it = stats.begin (); it != stats.end (); ++it)
+    {
+      Ipv4FlowClassifier::FiveTuple t = classifier->FindFlow (it->first);
+      
+      if (currentTime > 0)
+        {
+          double flowThroughputDl = it->second.rxBytes * 8.0 / (currentTime * 1000000.0); // Mbps
+          double flowThroughputUl = it->second.txBytes * 8.0 / (currentTime * 1000000.0); // Mbps
+          
+          // Downlink: packets to UE IP (from remote host)
+          if (ipToImsi.find (t.destinationAddress) != ipToImsi.end ())
+            {
+              uint64_t imsi = ipToImsi[t.destinationAddress];
+              totalThroughputDl[imsi] += flowThroughputDl;
+            }
+          
+          // Uplink: packets from UE IP (to remote host)
+          if (ipToImsi.find (t.sourceAddress) != ipToImsi.end ())
+            {
+              uint64_t imsi = ipToImsi[t.sourceAddress];
+              totalThroughputUl[imsi] += flowThroughputUl;
+            }
+        }
+    }
+  
+  // Update global throughput maps
+  for (auto it = totalThroughputDl.begin (); it != totalThroughputDl.end (); ++it)
+    {
+      ueThroughputDl[it->first] = it->second;
+    }
+  for (auto it = totalThroughputUl.begin (); it != totalThroughputUl.end (); ++it)
+    {
+      ueThroughputUl[it->first] = it->second;
+    }
+  
+  // Schedule next sample
+  Simulator::Schedule (Seconds (period), &SampleThroughput, monitor, classifier, ueDevs, ueIpIfaces, numUes, period);
 }
 
-// Periodic position and speed update with measurement logging
-void UpdateUePositionAndSpeed (NodeContainer ueNodes, NetDeviceContainer ueDevs)
+// Periodic logging function that runs exactly on whole seconds
+void LogEverySecond (NodeContainer ueNodes, NetDeviceContainer ueDevs)
 {
   double time = Simulator::Now ().GetSeconds ();
   
@@ -389,11 +502,8 @@ void UpdateUePositionAndSpeed (NodeContainer ueNodes, NetDeviceContainer ueDevs)
           ueLastPosition[imsi] = pos;
           ueLastSpeed[imsi] = speed;
           
-          // Periodic measurement logging (every 1 second to avoid too much data)
-          // Log position, speed, and current cell association
-          // Check if time is approximately a whole number (within 0.05 seconds)
-          double timeRemainder = time - std::floor (time);
-          if (g_logger != 0 && timeRemainder < 0.05) // Log once per second (at whole seconds)
+          // Log periodic measurement
+          if (g_logger != 0)
             {
               uint16_t cellId = 0;
               if (ueCurrentCell.find (imsi) != ueCurrentCell.end ())
@@ -407,17 +517,32 @@ void UpdateUePositionAndSpeed (NodeContainer ueNodes, NetDeviceContainer ueDevs)
               double rsrq = -20.0;
               double sinr = 0.0;
               
+              // First try IMSI-specific values
               if (ueLastRsrp.find (imsi) != ueLastRsrp.end ())
                 {
                   rsrp = ueLastRsrp[imsi];
                 }
+              else if (cellId > 0 && cellRsrp.find (cellId) != cellRsrp.end ())
+                {
+                  // Fallback: use cellId-based value from PHY trace
+                  rsrp = cellRsrp[cellId];
+                  ueLastRsrp[imsi] = rsrp; // Cache for this IMSI
+                }
+              
               if (ueLastRsrq.find (imsi) != ueLastRsrq.end ())
                 {
                   rsrq = ueLastRsrq[imsi];
                 }
+              
               if (ueLastSinr.find (imsi) != ueLastSinr.end ())
                 {
                   sinr = ueLastSinr[imsi];
+                }
+              else if (cellId > 0 && cellSinr.find (cellId) != cellSinr.end ())
+                {
+                  // Fallback: use cellId-based value from PHY trace
+                  sinr = cellSinr[cellId];
+                  ueLastSinr[imsi] = sinr; // Cache for this IMSI
                 }
               
               // Get throughput if available
@@ -438,8 +563,8 @@ void UpdateUePositionAndSpeed (NodeContainer ueNodes, NetDeviceContainer ueDevs)
         }
     }
   
-  // Schedule next update (every 0.1 seconds)
-  Simulator::Schedule (Seconds (0.1), &UpdateUePositionAndSpeed, ueNodes, ueDevs);
+  // Schedule next update exactly 1 second later
+  Simulator::Schedule (Seconds (1.0), &LogEverySecond, ueNodes, ueDevs);
 }
 
 int
@@ -449,10 +574,12 @@ main (int argc, char *argv[])
   uint16_t numUes = 10;
   uint16_t numGnbs = 8;
   double simTime = 100.0; // seconds
-  double areaXMin = 175.0;
-  double areaXMax = 1250.0;
-  double areaYMin = 230.0;
-  double areaYMax = 830.0;
+  // Default area - can be overridden via CLI to match SUMO trace coordinates
+  // SUMO trace typically spans: X:[-1.6, 3226.6], Y:[-1.6, 1201.6]
+  double areaXMin = -5.0;  // Changed to match SUMO trace bounds
+  double areaXMax = 3230.0;
+  double areaYMin = -5.0;
+  double areaYMax = 1210.0;
   
   // Radio parameters
   double ueTxPower = 26.0; // dBm
@@ -513,6 +640,10 @@ main (int argc, char *argv[])
   cmd.AddValue ("numBands", "Number of bands", numBands);
   cmd.AddValue ("handoverHysteresis", "Handover hysteresis in dB (default: 3.0)", handoverHysteresis);
   cmd.AddValue ("timeToTrigger", "Handover time-to-trigger in ms (default: 256)", timeToTriggerMs);
+  cmd.AddValue ("areaXMin", "Minimum X coordinate of simulation area", areaXMin);
+  cmd.AddValue ("areaXMax", "Maximum X coordinate of simulation area", areaXMax);
+  cmd.AddValue ("areaYMin", "Minimum Y coordinate of simulation area", areaYMin);
+  cmd.AddValue ("areaYMax", "Maximum Y coordinate of simulation area", areaYMax);
   cmd.Parse (argc, argv);
 
   // Enable logging (optional - comment out for less output)
@@ -707,6 +838,11 @@ main (int argc, char *argv[])
 
   // Install LTE devices
   NetDeviceContainer gnbDevs = lteHelper->InstallEnbDevice (gnbNodes);
+  
+  // CRITICAL: Add X2 interfaces between eNBs for handover support
+  // Without X2, handover procedures cannot execute even if measurement reports are received
+  lteHelper->AddX2Interface (gnbNodes);
+  
   NetDeviceContainer ueDevs = lteHelper->InstallUeDevice (ueNodes);
   
   // Configure Cell IDs and Master IDs for eNBs
@@ -912,8 +1048,12 @@ main (int argc, char *argv[])
   Config::Connect ("/NodeList/*/DeviceList/*/LteUeRrc/ConnectionEstablished",
                    MakeCallback (&NotifyConnectionEstablishedUe));
   
-  // Connect measurement reports - try both eNB side (recommended) and UE side
-  // eNB side: Receives measurement reports from UEs
+  // Connect PHY trace for real RSRP and SINR values (more accurate than RRC reports)
+  // This is critical for getting real SINR values instead of placeholders
+  Config::Connect ("/NodeList/*/DeviceList/*/LteUePhy/ReportCurrentCellRsrpSinr",
+                   MakeCallback (&UePhyRsrpSinr));
+  
+  // Connect measurement reports - eNB side receives RSRQ from UE measurement reports
   Config::Connect ("/NodeList/*/DeviceList/*/LteEnbRrc/RecvMeasurementReport",
                    MakeCallback (&NotifyRecvMeasurementReport));
   
@@ -922,12 +1062,18 @@ main (int argc, char *argv[])
   // Config::Connect ("/NodeList/*/DeviceList/*/LteUeRrc/ReportCurrentCellRsrpMeasurements",
   //                  MakeCallback (&NotifyReportUeMeasurements));
 
-  // Start periodic position and speed updates
-  Simulator::Schedule (Seconds (0.1), &UpdateUePositionAndSpeed, ueNodes, ueDevs);
+  // Start periodic logging exactly on whole seconds (starting at 1.0 second)
+  Simulator::Schedule (Seconds (1.0), &LogEverySecond, ueNodes, ueDevs);
 
   // Install FlowMonitor for throughput statistics
   FlowMonitorHelper flowHelper;
   Ptr<FlowMonitor> monitor = flowHelper.InstallAll ();
+  Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowHelper.GetClassifier ());
+  
+  // Start periodic throughput sampling (every 0.5 seconds)
+  // This updates throughput maps during simulation so they're available for logging
+  // Start after applications have started (1 second delay to allow flows to establish)
+  Simulator::Schedule (Seconds (1.0), &SampleThroughput, monitor, classifier, ueDevs, ueIpIfaces, numUes, 0.5);
 
   // Enable PCAP tracing (optional - comment out to disable)
   // p2ph.EnablePcapAll ("handover-simulation");
@@ -960,9 +1106,8 @@ main (int argc, char *argv[])
   
   Simulator::Run ();
 
-  // Collect statistics
+  // Collect statistics (classifier was already created above for periodic sampling)
   monitor->CheckForLostPackets ();
-  Ptr<Ipv4FlowClassifier> classifier = DynamicCast<Ipv4FlowClassifier> (flowHelper.GetClassifier ());
   FlowMonitor::FlowStatsContainer stats = monitor->GetFlowStats ();
 
   // Extract throughput per UE from FlowMonitor
