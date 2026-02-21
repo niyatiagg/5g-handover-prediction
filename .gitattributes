@@ -1,2 +1,5 @@
+*fcd.xml filter=lfs diff=lfs merge=lfs -text
+*ns2mobility.tcl filter=lfs diff=lfs merge=lfs -text
+*.csv filter=lfs diff=lfs merge=lfs -text
 *ns2mobility_manhattan_*_keep50_1s*.tcl filter=lfs diff=lfs merge=lfs -text
 *fcd_100k_keep50.xml filter=lfs diff=lfs merge=lfs -text
