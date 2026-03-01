@@ -30,6 +30,8 @@
 #include <cmath>
 #include <limits>
 #include <regex>
+#include <unordered_map>
+#include <cmath>
 
 using namespace ns3;
 
@@ -38,6 +40,10 @@ NS_LOG_COMPONENT_DEFINE ("LteSumoHoDatasetExtractor");
 static inline double DbmToMilliwatt (double dbm) { return std::pow (10.0, dbm / 10.0); }
 static inline double MilliwattToDbm (double mw)  { return 10.0 * std::log10 (std::max (mw, 1e-15)); }
 
+// Store the most recent HO event "time bucket" per IMSI (so we can pulse at 1s sampling)
+static std::unordered_map<uint64_t, uint16_t> g_hoTarget;   // optional: target cell id
+static std::unordered_map<uint64_t, double> g_lastHoTime; // imsi -> last HO time (seconds)
+							  //
 struct PerUeState
 {
   uint16_t servingCellId = 0;
@@ -273,6 +279,21 @@ Sample ()
           S.a3CondStartTime = -1.0;
           S.a3PulseFired = false;
         }
+      
+      // pulse if a HO happened in the same 1-second bucket as this sample
+      int ho_exec = 0;
+      auto itHo = g_lastHoTime.find(imsi);
+      if (itHo != g_lastHoTime.end())
+      {
+          const double dt = g_samplePeriod.GetSeconds();  // should be 1.0
+          const double hoT = itHo->second;
+
+          // HO happened in (t - dt, t]  -> label it at this sample
+          if (hoT > (t - dt) && hoT <= (t + 1e-9))
+          {
+              ho_exec = 1;
+          }
+      }
 
       g_csv << std::fixed << std::setprecision (6)
             << t << ","
@@ -285,7 +306,8 @@ Sample ()
             << S.servingRsrpDbm << ","
             << S.servingSinrDb << ","
             << distance << ","
-            << trigger
+            << trigger << ","
+            << ho_exec
             << "\n";
     }
 
@@ -311,6 +333,30 @@ PlaceEnbs (NodeContainer enbNodes, Rectangle area)
         mh.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
         mh.Install (enbNodes.Get (idx));
       }
+}
+
+// UE RRC: handover start (exact signature can vary by ns-3 version)
+// Common patterns include: (uint64_t imsi, uint16_t cellId, uint16_t rnti, uint16_t targetCellId)
+static void
+NotifyUeHandoverStart(uint64_t imsi, uint16_t cellId, uint16_t rnti, uint16_t otherCid)
+{
+  const double now = Simulator::Now().GetSeconds();
+  g_lastHoTime[imsi] = now;
+  // optional: store target cell if you want
+  // g_hoTarget[imsi] = otherCid;
+  
+  NS_LOG_UNCOND("UE HO START imsi=" << imsi
+               << " cellId=" << cellId
+               << " rnti=" << rnti
+               << " otherCid=" << otherCid
+               << " t=" << Simulator::Now().GetSeconds());
+}
+
+static void
+NotifyUeHandoverEndOk(uint64_t imsi, uint16_t cellId, uint16_t rnti)
+{
+  const double now = Simulator::Now().GetSeconds();
+  g_lastHoTime[imsi] = now;
 }
 
 int
@@ -415,11 +461,18 @@ main (int argc, char *argv[])
 
   // Measurement reports
   Config::Connect ("/NodeList/*/DeviceList/*/LteEnbRrc/RecvMeasurementReport",
-                   MakeCallback (&NotifyRecvMeasurementReport));
+                  MakeCallback (&NotifyRecvMeasurementReport));
+                   
+  // Connect UE RRC HO traces (trace source names can differ slightly across ns-3 versions)
+  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/LteUeRrc/HandoverStart",
+                  MakeCallback(&NotifyUeHandoverStart));
+
+  Config::ConnectWithoutContext ("/NodeList/*/DeviceList/*/LteUeRrc/HandoverEndOk",
+                  MakeCallback(&NotifyUeHandoverEndOk));
 
   // CSV output
   g_csv.open (csvOut.c_str ());
-  g_csv << "time_s,ue_imsi,rssi_id,rssi,current_id,current_rssi,hysteresis,rsrp,sinr,distance_ue,trigger\n";
+  g_csv << "time_s,ue_imsi,rssi_id,rssi,current_id,current_rssi,hysteresis,rsrp,sinr,distance_ue,trigger,ho_exec\n";
   g_csv.setf (std::ios::fixed);
   g_csv << std::setprecision (6);
 
