@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-03-13 22:32:35.202109 by Eclipse SUMO randomTrips.py v1.26.0
+<configuration>
+    <net-file value="manhattan.net.xml"/>
+    <output-trip-file value="manhattan_keep50.trips.xml"/>
+    <route-file value="manhattan_keep50.rou.xml"/>
+    <prefix value="veh"/>
+    <trip-attributes value="departLane=&quot;best&quot; departSpeed=&quot;max&quot;"/>
+    <seed value="1"/>
+    <min-distance value="800.0"/>
+    <end value="50.0"/>
+    <period value="1.0"/>
+</configuration>
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <trip id="veh0" depart="0.00" from="B5B4" to="I3H3" departLane="best" departSpeed="max"/>
+    <trip id="veh1" depart="1.00" from="H4I4" to="C6C7" departLane="best" departSpeed="max"/>
+    <trip id="veh2" depart="2.00" from="E9E8" to="E5D5" departLane="best" departSpeed="max"/>
+    <trip id="veh3" depart="3.00" from="I1J1" to="E3E4" departLane="best" departSpeed="max"/>
+    <trip id="veh4" depart="4.00" from="H4I4" to="A0A1" departLane="best" departSpeed="max"/>
+    <trip id="veh5" depart="5.00" from="C4C3" to="J3I3" departLane="best" departSpeed="max"/>
+    <trip id="veh6" depart="6.00" from="I7J7" to="A4A3" departLane="best" departSpeed="max"/>
+    <trip id="veh7" depart="7.00" from="A3A4" to="F3G3" departLane="best" departSpeed="max"/>
+    <trip id="veh8" depart="8.00" from="J2J1" to="D8D9" departLane="best" departSpeed="max"/>
+    <trip id="veh9" depart="9.00" from="E4D4" to="E9E8" departLane="best" departSpeed="max"/>
+    <trip id="veh10" depart="10.00" from="G3G4" to="C0B0" departLane="best" departSpeed="max"/>
+    <trip id="veh11" depart="11.00" from="J8J9" to="I4H4" departLane="best" departSpeed="max"/>
+    <trip id="veh12" depart="12.00" from="J2I2" to="E2E3" departLane="best" departSpeed="max"/>
+    <trip id="veh13" depart="13.00" from="I1I0" to="G6F6" departLane="best" departSpeed="max"/>
+    <trip id="veh14" depart="14.00" from="D1D2" to="F8E8" departLane="best" departSpeed="max"/>
+    <trip id="veh15" depart="15.00" from="I6H6" to="I2J2" departLane="best" departSpeed="max"/>
+    <trip id="veh16" depart="16.00" from="F0F1" to="F8F7" departLane="best" departSpeed="max"/>
+    <trip id="veh17" depart="17.00" from="H8G8" to="E2D2" departLane="best" departSpeed="max"/>
+    <trip id="veh18" depart="18.00" from="B8C8" to="F4F5" departLane="best" departSpeed="max"/>
+    <trip id="veh19" depart="19.00" from="G9F9" to="G6G5" departLane="best" departSpeed="max"/>
+    <trip id="veh20" depart="20.00" from="D7E7" to="E4E3" departLane="best" departSpeed="max"/>
+    <trip id="veh21" depart="21.00" from="F1E1" to="H6H5" departLane="best" departSpeed="max"/>
+    <trip id="veh22" depart="22.00" from="F2E2" to="D9E9" departLane="best" departSpeed="max"/>
+    <trip id="veh23" depart="23.00" from="E8F8" to="A3B3" departLane="best" departSpeed="max"/>
+    <trip id="veh24" depart="24.00" from="A5A6" to="G9F9" departLane="best" departSpeed="max"/>
+    <trip id="veh25" depart="25.00" from="J7J6" to="F8F9" departLane="best" departSpeed="max"/>
+    <trip id="veh26" depart="26.00" from="F0E0" to="J7J6" departLane="best" departSpeed="max"/>
+    <trip id="veh27" depart="27.00" from="I4H4" to="C4C5" departLane="best" departSpeed="max"/>
+    <trip id="veh28" depart="28.00" from="F1F0" to="J3J4" departLane="best" departSpeed="max"/>
+    <trip id="veh29" depart="29.00" from="J4J3" to="A1A0" departLane="best" departSpeed="max"/>
+    <trip id="veh30" depart="30.00" from="H6I6" to="I0I1" departLane="best" departSpeed="max"/>
+    <trip id="veh31" depart="31.00" from="I6I7" to="H2I2" departLane="best" departSpeed="max"/>
+    <trip id="veh32" depart="32.00" from="H9G9" to="F1G1" departLane="best" departSpeed="max"/>
+    <trip id="veh33" depart="33.00" from="A7A6" to="I5H5" departLane="best" departSpeed="max"/>
+    <trip id="veh34" depart="34.00" from="F6F7" to="C1C2" departLane="best" departSpeed="max"/>
+    <trip id="veh35" depart="35.00" from="F0F1" to="E8E7" departLane="best" departSpeed="max"/>
+    <trip id="veh36" depart="36.00" from="G0H0" to="E5F5" departLane="best" departSpeed="max"/>
+    <trip id="veh37" depart="37.00" from="B9A9" to="F7G7" departLane="best" departSpeed="max"/>
+    <trip id="veh38" depart="38.00" from="I4H4" to="H8G8" departLane="best" departSpeed="max"/>
+    <trip id="veh39" depart="39.00" from="C6C7" to="I2I3" departLane="best" departSpeed="max"/>
+    <trip id="veh40" depart="40.00" from="G6G5" to="B0B1" departLane="best" departSpeed="max"/>
+    <trip id="veh41" depart="41.00" from="H4H3" to="C6B6" departLane="best" departSpeed="max"/>
+    <trip id="veh42" depart="42.00" from="B3A3" to="G1H1" departLane="best" departSpeed="max"/>
+    <trip id="veh43" depart="43.00" from="B7B8" to="F2F3" departLane="best" departSpeed="max"/>
+    <trip id="veh44" depart="44.00" from="H0G0" to="E5E6" departLane="best" departSpeed="max"/>
+    <trip id="veh45" depart="45.00" from="A3A2" to="D9C9" departLane="best" departSpeed="max"/>
+    <trip id="veh46" depart="46.00" from="B3A3" to="I7I8" departLane="best" departSpeed="max"/>
+    <trip id="veh47" depart="47.00" from="B6B5" to="H0I0" departLane="best" departSpeed="max"/>
+    <trip id="veh48" depart="48.00" from="B7B8" to="G9F9" departLane="best" departSpeed="max"/>
+    <trip id="veh49" depart="49.00" from="C3C4" to="J6J7" departLane="best" departSpeed="max"/>
+</routes>

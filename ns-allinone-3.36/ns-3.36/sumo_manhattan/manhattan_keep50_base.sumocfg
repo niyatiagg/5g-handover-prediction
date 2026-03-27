@@ -1,0 +1,11 @@
+<configuration>
+  <input>
+    <net-file value="manhattan.net.xml"/>
+    <additional-files value="erratic.add.xml"/>
+  </input>
+  <time>
+    <begin value="0"/>
+    <end value="25000"/>
+    <step-length value="0.1"/>
+  </time>
+</configuration>
