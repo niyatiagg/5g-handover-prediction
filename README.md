@@ -30,7 +30,7 @@ In the final dataset, `short_dwell_15` acts as a superset of `reversal_15`, so i
 
 ## Simulation and Dataset
 
-The project uses **SUMO** for mobility generation and **ns-3 LTE** for radio and handover simulation.
+The project uses **SUMO** for mobility generation and **ns-3** for radio and handover simulation.
 
 ### Final 100k dataset summary
 
