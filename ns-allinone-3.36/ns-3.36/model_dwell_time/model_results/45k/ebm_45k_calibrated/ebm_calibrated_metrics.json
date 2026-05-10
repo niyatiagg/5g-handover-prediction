@@ -1,0 +1,38 @@
+{
+  "n_total": 46598,
+  "n_train": 37490,
+  "n_test": 9108,
+  "n_train_positive": 1519,
+  "n_test_positive": 332,
+  "positive_rate_train": 0.04051747132568685,
+  "positive_rate_test": 0.03645147123407993,
+  "features": [
+    "pre_rsrp",
+    "pre_sinr_db_calc",
+    "pre_distance_ue",
+    "pre_gap_db",
+    "pre_hysteresis",
+    "pre_speed_ue",
+    "pre_trigger_a3",
+    "pre_trigger_kpi",
+    "pre_dx_ue",
+    "pre_dy_ue"
+  ],
+  "model": "EBM + calibration",
+  "calibration_method": "sigmoid",
+  "decision_threshold_for_point_metrics": 0.5,
+  "raw_ebm": {
+    "pr_auc": 0.21551892127915515,
+    "roc_auc": 0.8644338063283215,
+    "precision_at_0.5": 0.5,
+    "recall_at_0.5": 0.018072289156626505,
+    "f1_at_0.5": 0.03488372093023256
+  },
+  "calibrated_ebm": {
+    "pr_auc": 0.20821134365284902,
+    "roc_auc": 0.8544232765153594,
+    "precision_at_0.5": 0.8333333333333334,
+    "recall_at_0.5": 0.015060240963855422,
+    "f1_at_0.5": 0.029585798816568046
+  }
+}

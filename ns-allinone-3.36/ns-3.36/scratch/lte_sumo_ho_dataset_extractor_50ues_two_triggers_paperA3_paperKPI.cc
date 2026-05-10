@@ -85,7 +85,7 @@ struct PerUeState
 };
 
 static std::ofstream g_csv;
-static double g_hysteresisDb = 2.0;
+static double g_hysteresisDb = 1.0;
 static Time   g_samplePeriod = Seconds (1.0);
 
 static std::unordered_map<uint64_t, PerUeState> g_state;     // IMSI -> state
@@ -194,7 +194,6 @@ static void
 Sample ()
 {
   const double t = Simulator::Now ().GetSeconds ();
-  const double now = t;
 
   for (const auto &kv : g_imsiToIdx)
     {
@@ -374,7 +373,7 @@ main (int argc, char *argv[])
   std::string csvOut = "handover_dataset.csv";
 
   double ueTxDbm = 26.0, enbTxDbm = 46.0;
-  g_hysteresisDb = 2.0;
+  g_hysteresisDb = 1.0;
   uint16_t prbs = 50;
   g_samplePeriod = Seconds (1.0);
 
@@ -411,6 +410,7 @@ main (int argc, char *argv[])
 
   Config::SetDefault ("ns3::LteEnbPhy::TxPower", DoubleValue (enbTxDbm));
   Config::SetDefault ("ns3::LteUePhy::TxPower",  DoubleValue (ueTxDbm));
+  Config::SetDefault ("ns3::LteEnbRrc::SrsPeriodicity", UintegerValue (64));
 
   lteHelper->SetEnbDeviceAttribute ("DlBandwidth", UintegerValue (prbs));
   lteHelper->SetEnbDeviceAttribute ("UlBandwidth", UintegerValue (prbs));

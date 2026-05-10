@@ -1,0 +1,27 @@
+{
+  "n_total": 25824,
+  "n_train": 20735,
+  "n_test": 5089,
+  "n_train_positive": 838,
+  "n_test_positive": 185,
+  "positive_rate_train": 0.04041475765613697,
+  "positive_rate_test": 0.03635291805855767,
+  "pr_auc": 0.1555960986984332,
+  "roc_auc": 0.7603004717605045,
+  "precision_at_0.5": 0.08414239482200647,
+  "recall_at_0.5": 0.7027027027027027,
+  "f1_at_0.5": 0.15028901734104047,
+  "C": 0.01,
+  "features": [
+    "pre_rsrp",
+    "pre_sinr_db_calc",
+    "pre_distance_ue",
+    "pre_gap_db",
+    "pre_hysteresis",
+    "pre_speed_ue",
+    "pre_trigger_a3",
+    "pre_trigger_kpi",
+    "pre_dx_ue",
+    "pre_dy_ue"
+  ]
+}

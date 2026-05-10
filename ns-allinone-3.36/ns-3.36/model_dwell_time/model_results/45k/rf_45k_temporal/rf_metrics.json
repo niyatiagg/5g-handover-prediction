@@ -1,0 +1,29 @@
+{
+  "n_total": 46598,
+  "n_train": 37490,
+  "n_test": 9108,
+  "n_train_positive": 1519,
+  "n_test_positive": 332,
+  "positive_rate_train": 0.04051747132568685,
+  "positive_rate_test": 0.03645147123407993,
+  "pr_auc": 0.1737872282599675,
+  "roc_auc": 0.8541909204731415,
+  "precision_at_0.5": 0.28865979381443296,
+  "recall_at_0.5": 0.08433734939759036,
+  "f1_at_0.5": 0.13053613053613053,
+  "features": [
+    "pre_rsrp",
+    "pre_sinr_db_calc",
+    "pre_distance_ue",
+    "pre_gap_db",
+    "pre_hysteresis",
+    "pre_speed_ue",
+    "pre_trigger_a3",
+    "pre_trigger_kpi",
+    "pre_dx_ue",
+    "pre_dy_ue",
+    "delta_gap_1s",
+    "delta_sinr_1s"
+  ],
+  "model": "RandomForest"
+}

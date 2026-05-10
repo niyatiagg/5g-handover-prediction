@@ -1,0 +1,30 @@
+{
+  "n_total": 46598,
+  "n_train": 37490,
+  "n_test": 9108,
+  "n_train_positive": 1519,
+  "n_test_positive": 332,
+  "positive_rate_train": 0.04051747132568685,
+  "positive_rate_test": 0.03645147123407993,
+  "pr_auc": 0.19973878231862774,
+  "roc_auc": 0.8632842102228421,
+  "precision_at_0.5": 0.1294241944004226,
+  "recall_at_0.5": 0.7379518072289156,
+  "f1_at_0.5": 0.2202247191011236,
+  "features": [
+    "pre_rsrp",
+    "pre_sinr_db_calc",
+    "pre_distance_ue",
+    "pre_gap_db",
+    "pre_hysteresis",
+    "pre_speed_ue",
+    "pre_trigger_a3",
+    "pre_trigger_kpi",
+    "pre_dx_ue",
+    "pre_dy_ue",
+    "delta_gap_1s",
+    "delta_sinr_1s"
+  ],
+  "model": "XGBoost",
+  "scale_pos_weight": 23.68071099407505
+}

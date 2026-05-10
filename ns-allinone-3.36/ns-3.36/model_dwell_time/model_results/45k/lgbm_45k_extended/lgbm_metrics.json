@@ -1,0 +1,31 @@
+{
+  "n_total": 42333,
+  "n_train": 34069,
+  "n_test": 8264,
+  "n_train_positive": 1412,
+  "n_test_positive": 308,
+  "positive_rate_train": 0.04144530218086824,
+  "positive_rate_test": 0.037270087124878996,
+  "pr_auc": 0.2114262717756641,
+  "roc_auc": 0.8587896988632282,
+  "precision_at_0.5": 0.14295774647887324,
+  "recall_at_0.5": 0.6590909090909091,
+  "f1_at_0.5": 0.2349537037037037,
+  "features": [
+    "pre_rsrp",
+    "pre_sinr_db_calc",
+    "pre_distance_ue",
+    "pre_gap_db",
+    "pre_hysteresis",
+    "pre_speed_ue",
+    "pre_trigger_a3",
+    "pre_trigger_kpi",
+    "pre_dx_ue",
+    "pre_dy_ue",
+    "delta_gap_1s",
+    "delta_sinr_1s",
+    "delta_distance_1s"
+  ],
+  "model": "LightGBM",
+  "scale_pos_weight": 23.128186968838527
+}
