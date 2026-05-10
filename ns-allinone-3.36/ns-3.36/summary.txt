@@ -1,0 +1,753 @@
+
+## Prompt for a new chat
+
+I want you to understand the full post-dataset workflow of my project so you can help me continue from the correct point.
+
+My project is about **predicting unstable handovers in dense LTE/5G-style cellular networks using machine learning**. The mobility/data generation part was done using **SUMO + ns-3 LTE simulation**, and after that I created several intermediate and final CSV files for event extraction, labeling, temporal feature engineering, model training, and evaluation.
+
+I need you to treat the following as the current project history and artifact map.
+
+---
+
+# 1. Starting point after per-second dataset generation
+
+The original per-second dataset came from ns-3 + SUMO. One important file name is:
+
+* `handover_final_dataset_100k_A3_KPI_mobility.csv`
+
+This is the **per-second radio + mobility dataset**. It contains columns such as:
+
+* time
+* UE identity
+* serving/candidate cell information
+* RSSI / RSRP / SINR-related values
+* hysteresis
+* distance
+* mobility features like speed / dx / dy
+* trigger columns like `trigger_a3` and `trigger_kpi`
+
+For the 100k run, I reported:
+
+* about **4,999,950 rows**
+* **18 columns**
+* simulation time from **1.0 s to 99,999.0 s**
+* **50 UEs**
+* **8 non-zero serving cells**
+* `trigger_a3_count = 1530`
+* `trigger_kpi_count = 34662`
+
+So this file is the **starting per-second dataset**, not yet the event-level ML table.
+
+---
+
+# 2. Why I created ho_events.csv
+
+From the per-second dataset, I extracted actual handover events by detecting **changes in serving cell ID**.
+
+This produced files like:
+
+* `ho_events_100k.csv`
+
+Purpose of `ho_events_100k.csv`:
+
+* convert the per-second trace into **handover-event records**
+* each row is one handover event
+* store things like:
+
+  * UE identity
+  * handover time
+  * source cell
+  * destination cell
+  * dwell time in target cell
+  * helper labels / metadata
+
+For the 100k case, this had:
+
+* **50,997 rows**
+* **50 UEs**
+* **8 unique source cells**
+* **8 unique destination cells**
+* dwell time:
+
+  * minimum = **11 s**
+  * median = **34 s**
+  * maximum = **50,338 s** in one earlier summary, and **20,338 s** is also used in my final report/paper wording, so if needed please help me verify which is the final number before using it in any polished text
+* `short_dwell_15_from_dwell_s = 1476`
+
+So `ho_events_100k.csv` is the **event extraction output** before attaching final pre-handover ML features and labels.
+
+---
+
+# 3. Why I created ho_train.csv
+
+After extracting handover events, I created an **event-level training table** by attaching **pre-handover features** to each event.
+
+Important file names in this stage include:
+
+* `ho_train_100k.csv`
+* `ho_train_100k_clean_labeled_temporal.csv`
+* for smaller experiments, variants like `ho_train_45k...` or `ho_train_100k_clean_labeled_temporal.csv`
+
+Purpose of `ho_train.csv`:
+
+* one row per handover event
+* stores the feature values seen **before handover execution**
+* used as the main ML training dataset
+
+The features I eventually used include:
+
+* `pre_rsrp`
+* `pre_sinr_db_calc`
+* `pre_distance_ue`
+* `pre_gap_db`
+* `pre_hysteresis`
+* `pre_speed_ue`
+* `pre_trigger_a3`
+* `pre_trigger_kpi`
+* `pre_dx_ue`
+* `pre_dy_ue`
+
+This is the main event-level ML table, before or after labeling depending on version.
+
+---
+
+# 4. Why I created labeled files
+
+I created labeled versions of `ho_train` because I needed a final target for supervised learning.
+
+The final target definition is:
+
+* `unstable_15 = reversal_15 OR short_dwell_15`
+
+Where:
+
+* `short_dwell_15 = 1` if `dwell_s <= 15`
+* `reversal_15 = 1` if the UE goes from A -> B and then B -> A within 15 seconds
+
+Important labeled file names:
+
+* `ho_train_100k_clean_labeled_temporal.csv`
+* probably earlier labeled variants like `ho_train_100k_clean_labeled.csv` or unlabeled/labeled intermediate versions
+
+Why I created labeled files:
+
+* `ho_events.csv` had event timing and dwell information
+* but ML training required a final binary target column
+* so I added:
+
+  * `reversal_15`
+  * `short_dwell_15`
+  * `unstable_15`
+  * `stable_final` or similar stable indicator columns in some versions
+
+For the final 100k labeled temporal file:
+
+* rows = **50,997**
+* `reversal_15_count = 897`
+* `short_dwell_15_count = 1476`
+* `unstable_15_count = 1476`
+* `stable_final_count = 49,521`
+* `unstable_15_rate = 0.028943`
+
+Important note:
+
+* in my dataset, `short_dwell_15` ended up being a **superset of** `reversal_15`
+* I also checked shorter windows like 5 s and 10 s, but reversal counts there were zero, so I used **15 s**
+
+---
+
+# 5. Sanity checks I conducted
+
+After creating the event-level / temporal files, I ran sanity checks.
+
+One example output showed:
+
+* total rows around **46,598**
+* `missing_delta_gap_1s = 0`
+* `missing_delta_sinr_1s = 0`
+* `missing_delta_distance_1s = 4265`
+
+I also printed sample rows to verify columns like:
+
+* `event_id`
+* `ue_imsi`
+* `t_ho`
+* `src_cell`
+* `dst_cell`
+* `dwell_s`
+* `pingpong`
+* `stable`
+* `pre_rssi`
+* `pre_rsrp`
+* `pre_sinr_db_calc`
+* `pre_distance_ue`
+* `pre_gap_db`
+* `pre_trigger_a3`
+* `pre_trigger_kpi`
+* `pre_hysteresis`
+* `pre_rssi_id`
+* `pre_speed_ue`
+* `pre_dx_ue`
+* `pre_dy_ue`
+* `reversal_15`
+* `short_dwell_15`
+* `unstable_15`
+* `stable_final`
+* `delta_gap_1s`
+* `delta_sinr_1s`
+* `delta_distance_1s`
+
+Purpose of sanity checks:
+
+* verify that temporal columns were generated correctly
+* check missing values
+* make sure labels aligned with handover events
+* confirm column count and schema
+
+---
+
+# 6. Why I created temporal feature versions
+
+I then extended the event-level table with **temporal delta features**.
+
+These included:
+
+* `delta_gap_1s`
+* `delta_sinr_1s`
+* `delta_distance_1s`
+
+Reason:
+
+* I wanted to capture whether the serving-target gap, SINR, or distance was improving or worsening **right before handover**
+* this gives more temporal context than just a single snapshot
+
+Important file:
+
+* `ho_train_100k_clean_labeled_temporal.csv`
+
+This file means:
+
+* `clean`: cleaned/usable ML-ready version
+* `labeled`: has final target columns
+* `temporal`: includes temporal delta features
+
+Observations:
+
+* `delta_gap_1s` and `delta_sinr_1s` had no missing values
+* `delta_distance_1s` had missing values in some smaller versions
+* adding `delta_distance_1s` did not help much in performance and sometimes reduced row count because of dropped missing values
+
+So for some final runs, I used only:
+
+* `delta_gap_1s`
+* `delta_sinr_1s`
+
+and excluded `delta_distance_1s`
+
+---
+
+# 7. Why I explored temporal summary features
+
+After the 1-second temporal deltas, I also created / tested **multi-second summary features**, especially for LightGBM.
+
+These included:
+
+* `avg_gap_last3`
+* `avg_sinr_last3`
+* `gap_slope_last3`
+* `sinr_slope_last3`
+
+Purpose:
+
+* capture short-term trend over multiple seconds rather than only the previous second
+* see if a small time window helps identify instability better
+
+This was mainly used in the **final LightGBM gating analysis**, where LightGBM with temporal summary features became the best balanced model.
+
+If needed, please assume that “temporal summary features” means the above 3-second summary features.
+
+---
+
+# 8. Models I trained
+
+I evaluated the following models:
+
+## 8.1 Logistic Regression
+
+Script/file:
+
+* `train_logreg_unstable_extended_model.py`
+
+Example command used:
+
+* with `--csv ho_train_100k_clean_labeled_temporal.csv`
+* output folder like:
+
+  * `model_results/logreg_100k_extended_p1.0`
+
+Purpose:
+
+* simple linear baseline
+* class-balanced weighting used
+
+Outputs generated:
+
+* predictions CSV
+* threshold sweep CSV
+* metrics JSON
+
+Example output files:
+
+* `logreg_test_predictions.csv`
+* `logreg_threshold_sweep.csv`
+* `logreg_metrics.json`
+
+## 8.2 Explainable Boosting Machine (EBM)
+
+Script/file:
+
+* `train_ebm_unstable.py`
+
+Output folder example:
+
+* `model_results/ebm_100k_extended_model`
+
+Purpose:
+
+* interpretable nonlinear baseline
+
+Outputs generated:
+
+* `ebm_term_importance.csv`
+* `ebm_test_predictions.csv`
+* `ebm_threshold_sweep.csv`
+* `ebm_metrics.json`
+
+Important observation:
+
+* EBM had decent ranking metrics
+* but `f1@0.5 = 0.0`, so it was not useful at default threshold 0.5
+* I still used it as an interpretable model, especially at low thresholds
+
+## 8.3 LightGBM
+
+Script/file:
+
+* `train_lgbm_unstable.py`
+
+Output folder example:
+
+* `model_results/lgbm_100k_extended`
+
+Outputs generated:
+
+* `lgbm_feature_importance.csv`
+* `lgbm_test_predictions.csv`
+* `lgbm_threshold_sweep.csv`
+* `lgbm_metrics.json`
+
+Purpose:
+
+* boosted-tree model
+* best balanced gating behavior in final study
+
+## 8.4 XGBoost
+
+Script/file:
+
+* `train_xgboost_unstable.py`
+
+Output folder example:
+
+* `model_results/xgb_100k_temporal`
+
+Outputs generated:
+
+* `xgb_feature_importance.csv`
+* `xgb_test_predictions.csv`
+* `xgb_threshold_sweep.csv`
+* `xgb_metrics.json`
+
+Purpose:
+
+* boosted-tree model
+* strongest ranking performance overall
+
+## 8.5 CatBoost
+
+I also tried CatBoost as a last additional model.
+
+Outputs mentioned:
+
+* CatBoost results and threshold sweep table
+
+Observation:
+
+* CatBoost did not beat the best LightGBM / XGBoost setup
+
+## 8.6 Random Forest
+
+I tried Random Forest as well.
+
+Observation:
+
+* ROC-AUC was decent
+* but recall / F1 behavior at threshold 0.5 was poor
+* it was not a final preferred model
+
+## 8.7 AdaBoost
+
+I considered AdaBoost later, though I do not remember if it became part of the final paper/report results. If you help me organize the history, please treat AdaBoost as explored / discussed, but not one of the final four main reported models unless I explicitly confirm otherwise.
+
+---
+
+# 9. Metrics and outputs generated for each model
+
+For most models, I generated:
+
+* train/test counts
+* positive counts
+* positive rate
+* `pr_auc`
+* `roc_auc`
+* `precision_at_0.5`
+* `recall_at_0.5`
+* `f1_at_0.5`
+* sometimes scale_pos_weight
+* model-specific extra outputs like feature importance or term importance
+
+The common output artifacts were:
+
+### Prediction files
+
+* per-event test-set predictions
+* file names like:
+
+  * `logreg_test_predictions.csv`
+  * `lgbm_test_predictions.csv`
+  * `xgb_test_predictions.csv`
+  * `ebm_test_predictions.csv`
+
+These should contain at least:
+
+* true label
+* predicted score / probability
+* maybe thresholded prediction or event identifiers depending on script version
+
+### Threshold sweep files
+
+* file names like:
+
+  * `logreg_threshold_sweep.csv`
+  * `lgbm_threshold_sweep.csv`
+  * `xgb_threshold_sweep.csv`
+  * `ebm_threshold_sweep.csv`
+
+These are very important.
+They summarize model behavior across thresholds like:
+
+* 0.1
+* 0.2
+* ...
+* 0.9
+
+Typical columns include:
+
+* `threshold`
+* `n_total`
+* `n_gate`
+* `n_unstable`
+* `n_stable`
+* `n_reversal_15`
+* `n_short_dwell_15`
+* `ho_reduction_pct`
+* `unstable_reduction_pct`
+* `stable_loss_pct`
+* `reversal_reduction_pct`
+* `short_dwell_reduction_pct`
+
+### Metrics JSON files
+
+* file names like:
+
+  * `logreg_metrics.json`
+  * `lgbm_metrics.json`
+  * `xgb_metrics.json`
+  * `ebm_metrics.json`
+
+These contain summary metrics for the final run.
+
+### Importance files
+
+* LightGBM:
+
+  * `lgbm_feature_importance.csv`
+* XGBoost:
+
+  * `xgb_feature_importance.csv`
+* EBM:
+
+  * `ebm_term_importance.csv`
+
+These were used for interpretation / checking feature contributions.
+
+---
+
+# 10. Final results that became important
+
+These are the main results from the 100k study that were later used in the paper/report.
+
+## Ranking metrics
+
+* Logistic Regression:
+
+  * PR-AUC = 0.1207
+  * ROC-AUC = 0.8570
+  * F1@0.5 = 0.1526
+
+* EBM:
+
+  * PR-AUC = 0.1815
+  * ROC-AUC = 0.8892
+  * F1@0.5 = 0.0000
+
+* LightGBM:
+
+  * PR-AUC = 0.1967
+  * ROC-AUC = 0.8889
+  * F1@0.5 = 0.2167
+
+* XGBoost:
+
+  * PR-AUC = 0.1912
+  * ROC-AUC = 0.8930
+  * F1@0.5 = 0.2018
+
+Interpretation:
+
+* XGBoost = best ranker
+* LightGBM = best practical balanced model for offline gating
+* EBM = interpretable but poor default threshold behavior
+* Logistic Regression = simple baseline
+
+## Selected operating points from threshold sweeps
+
+* Logistic Regression @ 0.7:
+
+  * unstable reduction 53.01%
+  * stable-HO loss 9.43%
+  * reversal reduction 57.58%
+
+* EBM @ 0.1:
+
+  * unstable reduction 52.98%
+  * stable-HO loss 7.86%
+  * reversal reduction 46.81%
+
+* LightGBM @ 0.7:
+
+  * unstable reduction 47.37%
+  * stable-HO loss 7.28%
+  * reversal reduction 40.43%
+  * this became the **balanced operating point**
+
+* LightGBM @ 0.6:
+
+  * unstable reduction 60.70%
+  * stable-HO loss 10.31%
+  * reversal reduction 55.32%
+  * this became the **aggressive operating point**
+
+* XGBoost @ 0.7:
+
+  * unstable reduction 57.54%
+  * stable-HO loss 9.73%
+  * reversal reduction 49.47%
+
+---
+
+# 11. Plots I created
+
+I created plots for comparing models and showing threshold/gating behavior.
+
+Important plot/figure types:
+
+## 11.1 Balanced operating point comparison
+
+This became:
+
+* **Figure 2** in the report/paper
+
+Purpose:
+
+* compare selected thresholds across models
+* show:
+
+  * unstable reduction
+  * stable loss
+  * reversal reduction
+
+## 11.2 Baseline vs proposed approach
+
+This became:
+
+* **Figure 3**
+
+Purpose:
+
+* compare Logistic Regression baseline vs LightGBM proposed model
+* emphasize practical improvement / better tradeoff
+
+## 11.3 Threshold sweep: stable-handover loss
+
+This became:
+
+* **Figure 4**
+
+Purpose:
+
+* x-axis = threshold
+* y-axis = stable-HO loss
+* show cost of different threshold settings across models
+
+## 11.4 Threshold sweep: unstable-handover reduction
+
+This became:
+
+* **Figure 5**
+
+Purpose:
+
+* x-axis = threshold
+* y-axis = unstable-HO reduction
+* show benefit of threshold settings across models
+
+## 11.5 Offline gating tradeoff curve
+
+This became:
+
+* **Figure 6**
+
+Purpose:
+
+* x-axis = stable-HO loss
+* y-axis = unstable-HO reduction
+* this is the most important plot for policy selection
+* used to argue:
+
+  * LightGBM gives best balanced behavior
+  * XGBoost is strong for aggressive operation
+
+I may also have created feature-importance plots or discussed feature importance, but the major final plots are the five above.
+
+---
+
+# 12. Meaning of offline gating in my project
+
+Important concept:
+
+* I did **offline gating**, not online deployment
+
+Meaning:
+
+* standard HO logic identifies candidate handover
+* model assigns instability risk score to candidate event
+* threshold determines whether that event would be suppressed
+
+Formal policy used conceptually:
+
+* execute handover if `risk <= x`
+* suppress handover if `risk > x`
+
+Important notes:
+
+* `x` is globally fixed during offline evaluation for fair model comparison
+* raw score is not shown directly in a separate final table
+* the effect of score thresholding appears in the threshold-sweep / operating-point tables
+
+This was later added to the paper to clarify how gating fits into existing handover logic.
+
+---
+
+# 13. Files and what they mean
+
+Please remember these file roles:
+
+## Per-second simulation file
+
+* `handover_final_dataset_100k_A3_KPI_mobility.csv`
+* full per-second SUMO + ns-3 dataset
+
+## Event extraction file
+
+* `ho_events_100k.csv`
+* one row per handover event
+* includes dwell time and source/destination cell transitions
+
+## Event-level ML table
+
+* `ho_train_100k.csv`
+* handover events with pre-handover features
+
+## Final labeled + temporal event-level ML table
+
+* `ho_train_100k_clean_labeled_temporal.csv`
+* final event-level table for many experiments
+* includes labels and temporal deltas
+
+## Model training scripts
+
+* `train_logreg_unstable_extended_model.py`
+* `train_ebm_unstable.py`
+* `train_lgbm_unstable.py`
+* `train_xgboost_unstable.py`
+
+## Common model outputs
+
+* `*_test_predictions.csv`
+* `*_threshold_sweep.csv`
+* `*_metrics.json`
+
+## Model-specific importance outputs
+
+* `lgbm_feature_importance.csv`
+* `xgb_feature_importance.csv`
+* `ebm_term_importance.csv`
+
+---
+
+# 14. What I need from you in this new chat
+
+Please use all the above as project memory.
+
+When helping me:
+
+* remember the difference between:
+
+  * per-second dataset
+  * extracted handover events
+  * event-level training table
+  * labeled / temporal / summary feature versions
+* keep the file names consistent
+* distinguish between:
+
+  * ranking metrics
+  * threshold-sweep outputs
+  * offline gating interpretation
+* if I ask for paper/report/slide help, use the final results above unless I tell you otherwise
+* if I ask for code help, assume the workflow is:
+
+  1. per-second CSV
+  2. `ho_events.csv`
+  3. `ho_train.csv`
+  4. labeled / temporal enhancements
+  5. model training
+  6. threshold sweep
+  7. policy plots / analysis
+
+Also, if some file naming or number seems inconsistent, point it out instead of guessing.
+
+---
+
+If you want, I can also turn this into a **cleaner project handoff note** with headings like “data pipeline,” “artifact map,” “final results,” and “open issues.”
+
