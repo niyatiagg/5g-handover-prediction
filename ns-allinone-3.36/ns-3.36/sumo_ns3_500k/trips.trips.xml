@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-02-02 22:06:06.871703 by Eclipse SUMO randomTrips.py UNKNOWN
+<configuration>
+    <net-file value="net_offset.net.xml"/>
+    <route-file value="routes.rou.xml"/>
+    <prefix value="ue"/>
+    <trip-attributes value="type=&quot;ue&quot; departSpeed=&quot;max&quot;"/>
+    <end value="500000.0"/>
+    <period value="50000.0"/>
+    <random-depart value="True"/>
+</configuration>
+-->
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <trip id="ue0" depart="13112.00" from="H3G3" to="J5K5" type="ue" departSpeed="max"/>
+    <trip id="ue1" depart="53736.00" from="B1B0" to="E6E7" type="ue" departSpeed="max"/>
+    <trip id="ue2" depart="58369.00" from="A4A3" to="C5C4" type="ue" departSpeed="max"/>
+    <trip id="ue3" depart="73158.00" from="F5F4" to="A3A4" type="ue" departSpeed="max"/>
+    <trip id="ue4" depart="117026.00" from="C3B3" to="H0I0" type="ue" departSpeed="max"/>
+    <trip id="ue5" depart="128393.00" from="F9F8" to="C5C4" type="ue" departSpeed="max"/>
+    <trip id="ue6" depart="144194.00" from="G4F4" to="I7I6" type="ue" departSpeed="max"/>
+    <trip id="ue7" depart="335243.00" from="A10A9" to="I6J6" type="ue" departSpeed="max"/>
+    <trip id="ue8" depart="386123.00" from="H5H6" to="D8C8" type="ue" departSpeed="max"/>
+    <trip id="ue9" depart="388786.00" from="B8C8" to="K3K4" type="ue" departSpeed="max"/>
+</routes>

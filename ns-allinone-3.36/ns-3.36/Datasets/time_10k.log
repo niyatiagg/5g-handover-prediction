@@ -1,0 +1,45 @@
+Invalid command-line arguments: --=
+ [Program Options] [General Arguments]
+
+Program Options:
+    --numEnbs:       number of eNBs [8]
+    --numUes:        number of UEs [10]
+    --sumoTrace:     NS-2 mobility trace (.tcl) exported from SUMO [mobility.tcl]
+    --csvOut:        output CSV path [handover_dataset.csv]
+    --simTime:       simulation time (s) [500000]
+    --hysteresisDb:  handover hysteresis (dB) [2]
+
+General Arguments:
+    --PrintGlobals:              Print the list of globals.
+    --PrintGroups:               Print the list of groups.
+    --PrintGroup=[group]:        Print all TypeIds of group.
+    --PrintTypeIds:              Print all TypeIds.
+    --PrintAttributes=[typeid]:  Print all attributes of typeid.
+    --PrintVersion:              Print the ns-3 version.
+    --PrintHelp:                 Print this help message.
+
+Command 'build/scratch/ns3.36-lte_sumo_ho_dataset_extractor -- --sumoTrace=/home/ubuntu/cs297/ns-allinone-3.36/ns-3.36/sumo_ns3_500k/sumo_ns3_500k_random/ns2mobility.tcl --csvOut=Datasets/handover_dataset_10k.csv --simTime=10000' returned non-zero exit status 1.
+Command exited with non-zero status 1
+	Command being timed: "./ns3 run scratch/lte_sumo_ho_dataset_extractor -- --sumoTrace=/home/ubuntu/cs297/ns-allinone-3.36/ns-3.36/sumo_ns3_500k/sumo_ns3_500k_random/ns2mobility.tcl --csvOut=Datasets/handover_dataset_10k.csv --simTime=10000"
+	User time (seconds): 0.94
+	System time (seconds): 0.53
+	Percent of CPU this job got: 426%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 0:00.34
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 30600
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 2
+	Minor (reclaiming a frame) page faults: 125133
+	Voluntary context switches: 951
+	Involuntary context switches: 154
+	Swaps: 0
+	File system inputs: 0
+	File system outputs: 8
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 1

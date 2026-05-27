@@ -1,0 +1,12 @@
+<additional>
+  <vType id="ue"
+         accel="1.5"
+         decel="6.0"
+         emergencyDecel="9.0"
+         sigma="0.1"
+         tau="2.0"
+         minGap="3.0"
+         maxSpeed="60"
+         guiShape="passenger"/>
+</additional>
+
