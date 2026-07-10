@@ -2,6 +2,7 @@
 
 This project studies **unstable handover prediction** in dense cellular networks using an **ns-3 + SUMO + Python** workflow.  
 The goal is to identify handovers that are likely to become low-value or unstable shortly after execution, so they can be reduced through a predictive gating approach.
+**It was accepted and presented at the reputed IEEE conference ICSigSys 2026**
 
 ## Project Overview
 
